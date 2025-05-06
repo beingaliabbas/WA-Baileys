@@ -59,26 +59,30 @@ app.get("/status", (req, res) => {
 });
 
 app.post('/send-message', async (req, res) => {
-    const { number, message, apiKey } = req.body;
-  
-    if (apiKey !== "123456") {
-      return res.status(401).json({ status: false, message: "Unauthorized" });
-    }
-  
-    if (!number || !message) {
-      return res.status(400).json({ status: false, message: "Missing number or message" });
-    }
-  
-    const fullNumber = number.includes('@s.whatsapp.net') ? number : number + '@s.whatsapp.net';
-  
-    try {
-      await sock.sendMessage(fullNumber, { text: message });
-      return res.json({ status: true, message: "Message sent" });
-    } catch (err) {
-      console.error("Send error:", err);
-      return res.status(500).json({ status: false, message: "Message send failed", error: err.toString() });
-    }
-  });
+  const { phoneNumber, message, apiKey } = req.body;
+
+  if (apiKey !== "123456") {
+    return res.status(401).json({ status: false, message: "Unauthorized" });
+  }
+
+  if (!phoneNumber || !message) {
+    return res.status(400).json({ status: false, message: "Missing phoneNumber or message" });
+  }
+
+  const cleanedNumber = phoneNumber.replace(/\D/g, ""); // remove non-numeric chars
+  const fullNumber = cleanedNumber.includes('@s.whatsapp.net')
+    ? cleanedNumber
+    : `${cleanedNumber}@s.whatsapp.net`;
+
+  try {
+    await sock.sendMessage(fullNumber, { text: message });
+    return res.json({ status: true, message: "Message sent" });
+  } catch (err) {
+    console.error("Send error:", err);
+    return res.status(500).json({ status: false, message: "Message send failed", error: err.toString() });
+  }
+});
+
   
 initializeBot();
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
