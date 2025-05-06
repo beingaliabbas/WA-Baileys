@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WhatsApp QR Login</title>
+  <style>
+    body { font-family: Arial; background: #f2f2f2; text-align: center; padding: 50px; }
+    img { width: 300px; margin-top: 20px; }
+    input, button { margin: 10px; padding: 10px; width: 300px; }
+  </style>
+</head>
+<body>
+  <h2>WhatsApp Connection</h2>
+  <div id="status">Checking...</div>
+  <div id="qr"></div>
+
+  <hr />
+  <h3>Send WhatsApp Message</h3>
+  <input type="text" id="number" placeholder="Enter number like 923001234567"/><br/>
+  <input type="text" id="message" placeholder="Your message"/><br/>
+  <input type="text" id="apiKey" placeholder="API Key (123456)"/><br/>
+  <button onclick="sendMessage()">Send</button>
+
+  <script>
+    async function loadStatus() {
+      const res = await fetch('/status');
+      const data = await res.json();
+      document.getElementById('status').innerText = data.connected ? "Connected to WhatsApp" : "Not connected";
+
+      if (!data.connected) {
+        const qr = await fetch('/qr');
+        const qrImg = await qr.text();
+        document.getElementById('qr').innerHTML = `<img src="${qrImg}" alt="Scan QR">`;
+      } else {
+        document.getElementById('qr').innerHTML = "";
+      }
+    }
+
+    setInterval(loadStatus, 5000);
+    loadStatus();
+
+    async function sendMessage() {
+      const number = document.getElementById("number").value;
+      const message = document.getElementById("message").value;
+      const apiKey = document.getElementById("apiKey").value;
+
+      const res = await fetch('/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number, message, apiKey })
+      });
+
+      const data = await res.json();
+      alert(data.message);
+    }
+  </script>
+</body>
+</html>

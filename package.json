@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "baileys": "^6.7.16",
+    "express": "^5.1.0",
+    "mongodb": "^6.16.0",
+    "qrcode": "^1.5.4"
+  }
+}
