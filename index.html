@@ -17,21 +17,23 @@
 
   <hr />
   <h3>Send WhatsApp Message</h3>
-  <input type="text" id="number" placeholder="Enter number like 923001234567"/><br/>
-  <input type="text" id="message" placeholder="Your message"/><br/>
-  <input type="text" id="apiKey" placeholder="API Key (123456)"/><br/>
+  <input type="text" id="phoneNumber" placeholder="number"/><br/>
+  <input type="text" id="message" placeholder="message"/><br/>
+  <input type="text" id="apiKey" placeholder=""/><br/>
   <button onclick="sendMessage()">Send</button>
 
   <script>
     async function loadStatus() {
       const res = await fetch('/status');
-      const data = await res.json();
-      document.getElementById('status').innerText = data.connected ? "Connected to WhatsApp" : "Not connected";
+      const { connected } = await res.json();
+      document.getElementById('status').innerText = connected
+        ? "Connected to WhatsApp"
+        : "Not connected";
 
-      if (!data.connected) {
-        const qr = await fetch('/qr');
-        const qrImg = await qr.text();
-        document.getElementById('qr').innerHTML = `<img src="${qrImg}" alt="Scan QR">`;
+      if (!connected) {
+        const qrRes = await fetch('/qr');
+        const qrData = await qrRes.text();
+        document.getElementById('qr').innerHTML = `<img src="${qrData}" alt="Scan QR">`;
       } else {
         document.getElementById('qr').innerHTML = "";
       }
@@ -41,18 +43,18 @@
     loadStatus();
 
     async function sendMessage() {
-      const number = document.getElementById("number").value;
-      const message = document.getElementById("message").value;
-      const apiKey = document.getElementById("apiKey").value;
+      const phoneNumber = document.getElementById("phoneNumber").value.trim();
+      const message     = document.getElementById("message").value.trim();
+      const apiKey      = document.getElementById("apiKey").value.trim();
 
       const res = await fetch('/send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number, message, apiKey })
+        body: JSON.stringify({ phoneNumber, message, apiKey })
       });
 
       const data = await res.json();
-      alert(data.message);
+      alert(data.message || (data.error || "Unknown response"));
     }
   </script>
 </body>
