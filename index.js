@@ -1,4 +1,9 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require("baileys");
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion
+} = require("baileys");
 const express = require("express");
 const qrcode = require("qrcode");
 const fs = require("fs");
@@ -23,19 +28,38 @@ async function initializeBot() {
     printQRInTerminal: false,
   });
 
+  // Automatically reject incoming calls, but only when first offered
+  sock.ev.on("call", async (calls) => {
+    for (const c of calls) {
+      if (c.status === "offer") {
+        const callId    = c.id;
+        const callFrom  = c.from || c.chatId;
+
+        console.log(`📞 Incoming call from ${callFrom}, callId=${callId} — rejecting…`);
+        try {
+          // signature: rejectCall(callId, callFrom) :contentReference[oaicite:0]{index=0}
+          await sock.rejectCall(callId, callFrom);
+          console.log("❌ Call rejected");
+        } catch (err) {
+          console.error("⚠️ Failed to reject call:", err);
+        }
+      }
+    }
+  });
+
+  // Connection & QR handling
   sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
     if (qr) {
       const qrImage = await qrcode.toDataURL(qr);
       fs.writeFileSync("qr.txt", qrImage);
     }
-
     if (connection === "open") {
       console.log("✅ WhatsApp connected");
       await saveCreds();
     }
-
     if (connection === "close") {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+      const shouldReconnect =
+        lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       console.log("❌ Disconnected. Reconnect?", shouldReconnect);
       if (shouldReconnect) initializeBot();
     }
@@ -46,43 +70,45 @@ async function initializeBot() {
 
 app.get("/qr", (req, res) => {
   if (fs.existsSync("qr.txt")) {
-    const qrData = fs.readFileSync("qr.txt", "utf-8");
-    res.send(qrData);
+    res.send(fs.readFileSync("qr.txt", "utf-8"));
   } else {
     res.send("QR not available");
   }
 });
 
 app.get("/status", (req, res) => {
-  const isConnected = sock?.user ? true : false;
-  res.json({ connected: isConnected });
+  res.json({ connected: !!sock?.user });
 });
 
-app.post('/send-message', async (req, res) => {
+app.post("/send-message", async (req, res) => {
   const { phoneNumber, message, apiKey } = req.body;
 
   if (apiKey !== "123456") {
     return res.status(401).json({ status: false, message: "Unauthorized" });
   }
-
   if (!phoneNumber || !message) {
-    return res.status(400).json({ status: false, message: "Missing phoneNumber or message" });
+    return res
+      .status(400)
+      .json({ status: false, message: "Missing phoneNumber or message" });
   }
 
-  const cleanedNumber = phoneNumber.replace(/\D/g, ""); // remove non-numeric chars
-  const fullNumber = cleanedNumber.includes('@s.whatsapp.net')
-    ? cleanedNumber
-    : `${cleanedNumber}@s.whatsapp.net`;
+  const cleaned = phoneNumber.replace(/\D/g, "");
+  const fullNumber = cleaned.includes("@s.whatsapp.net")
+    ? cleaned
+    : `${cleaned}@s.whatsapp.net`;
 
   try {
     await sock.sendMessage(fullNumber, { text: message });
-    return res.json({ status: true, message: "Message sent" });
+    res.json({ status: true, message: "Message sent" });
   } catch (err) {
     console.error("Send error:", err);
-    return res.status(500).json({ status: false, message: "Message send failed", error: err.toString() });
+    res.status(500).json({
+      status: false,
+      message: "Message send failed",
+      error: err.toString(),
+    });
   }
 });
 
-  
 initializeBot();
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
