@@ -28,16 +28,14 @@ async function initializeBot() {
     printQRInTerminal: false,
   });
 
-  // Automatically reject incoming calls, but only when first offered
+  // Automatically reject incoming calls
   sock.ev.on("call", async (calls) => {
     for (const c of calls) {
       if (c.status === "offer") {
-        const callId    = c.id;
-        const callFrom  = c.from || c.chatId;
-
+        const callId = c.id;
+        const callFrom = c.from || c.chatId;
         console.log(`📞 Incoming call from ${callFrom}, callId=${callId} — rejecting…`);
         try {
-          // signature: rejectCall(callId, callFrom) :contentReference[oaicite:0]{index=0}
           await sock.rejectCall(callId, callFrom);
           console.log("❌ Call rejected");
         } catch (err) {
@@ -53,15 +51,29 @@ async function initializeBot() {
       const qrImage = await qrcode.toDataURL(qr);
       fs.writeFileSync("qr.txt", qrImage);
     }
+
     if (connection === "open") {
       console.log("✅ WhatsApp connected");
       await saveCreds();
     }
+
     if (connection === "close") {
-      const shouldReconnect =
-        lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log("❌ Disconnected. Reconnect?", shouldReconnect);
-      if (shouldReconnect) initializeBot();
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+
+      console.log(`❌ Disconnected (status ${statusCode}). Reconnect?`, !isLoggedOut);
+
+      if (isLoggedOut) {
+        console.log("🧹 Clearing session and resetting...");
+        try {
+          fs.rmSync(authDir, { recursive: true, force: true });
+          fs.writeFileSync("qr.txt", ""); // clear old QR
+        } catch (err) {
+          console.error("⚠️ Failed to clean up session:", err);
+        }
+      }
+
+      initializeBot(); // reinitialize in all cases
     }
   });
 
@@ -86,10 +98,13 @@ app.post("/send-message", async (req, res) => {
   if (apiKey !== "123456") {
     return res.status(401).json({ status: false, message: "Unauthorized" });
   }
+
+  if (!sock?.user) {
+    return res.status(503).json({ status: false, message: "WhatsApp is not connected" });
+  }
+
   if (!phoneNumber || !message) {
-    return res
-      .status(400)
-      .json({ status: false, message: "Missing phoneNumber or message" });
+    return res.status(400).json({ status: false, message: "Missing phone number or message" });
   }
 
   const cleaned = phoneNumber.replace(/\D/g, "");
@@ -99,12 +114,12 @@ app.post("/send-message", async (req, res) => {
 
   try {
     await sock.sendMessage(fullNumber, { text: message });
-    res.json({ status: true, message: "Message sent" });
+    res.json({ status: true, message: "Message sent successfully" });
   } catch (err) {
     console.error("Send error:", err);
     res.status(500).json({
       status: false,
-      message: "Message send failed",
+      message: "Failed to send message",
       error: err.toString(),
     });
   }
